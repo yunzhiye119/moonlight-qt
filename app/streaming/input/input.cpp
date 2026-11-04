@@ -280,9 +280,28 @@ void SdlInputHandler::notifyFocusLost()
         setCaptureActive(false);
     }
 
-    // Raise all keys that are currently pressed. If we don't do this, certain keys
-    // used in shortcuts that cause focus loss (such as Alt+Tab) may get stuck down.
-    raiseAllKeys();
+    // 只抬起修饰键与 Tab(避免 Alt+Tab 在主机上卡键),
+    // 方向键 / WASD 等保持按下,支持失焦后游戏继续响应
+    {
+        auto keysToRaise = m_KeysDown;
+        for (auto keyDown : std::as_const(keysToRaise)) {
+            const short vk = GET_KEYPRESS_CODE(keyDown);
+            const bool isModifierOrTab =
+                vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU ||
+                vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL ||
+                vk == VK_SHIFT || vk == VK_LSHIFT || vk == VK_RSHIFT ||
+                vk == VK_LWIN || vk == VK_RWIN || vk == VK_TAB;
+            if (!isModifierOrTab) {
+                continue;
+            }
+
+            LiSendKeyboardEvent2(vk, KEY_ACTION_UP,
+                                 GET_KEYPRESS_EXTENDED_MODIFIER(keyDown),
+                                 GET_KEYPRESS_FLAGS(keyDown));
+            m_KeysDown.remove(keyDown);
+        }
+    }
+
 }
 
 void SdlInputHandler::notifyFocusGained()
