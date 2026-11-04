@@ -528,12 +528,31 @@ void SdlInputHandler::raiseAllKeys()
                 "Raising %d keys",
                 (int)m_KeysDown.count());
 
+    // MODIFIED: 只抬起修饰键与 Tab。方向键 / WASD 等其他键保持按下,
+    // 这样客户端窗口失去焦点后,主机上的游戏仍能继续响应持续按住的移动键。
+    // 修饰键必须抬起,否则 Alt+Tab 里的 Alt 会永久卡死在主机上。
+    QSet<uint32_t> keysToKeep;
+
     for (auto keyDown : std::as_const(m_KeysDown)) {
-        LiSendKeyboardEvent2(GET_KEYPRESS_CODE(keyDown),
+        const short vk = GET_KEYPRESS_CODE(keyDown);
+
+        const bool isModifierOrTab =
+            vk == 0x09 ||                             // VK_TAB
+            vk == 0x10 || vk == 0xA0 || vk == 0xA1 || // VK_SHIFT / LSHIFT / RSHIFT
+            vk == 0x11 || vk == 0xA2 || vk == 0xA3 || // VK_CONTROL / LCONTROL / RCONTROL
+            vk == 0x12 || vk == 0xA4 || vk == 0xA5 || // VK_MENU / LMENU / RMENU
+            vk == 0x5B || vk == 0x5C;                 // VK_LWIN / VK_RWIN
+
+        if (!isModifierOrTab) {
+            keysToKeep.insert(keyDown);
+            continue;
+        }
+
+        LiSendKeyboardEvent2(vk,
                              KEY_ACTION_UP,
                              GET_KEYPRESS_EXTENDED_MODIFIER(keyDown),
                              GET_KEYPRESS_FLAGS(keyDown));
     }
 
-    m_KeysDown.clear();
+    m_KeysDown = keysToKeep;
 }
